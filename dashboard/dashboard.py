@@ -4,13 +4,13 @@ import matplotlib.pyplot as plt
 
 @st.cache
 def load_data():
-    return pd.read_csv('cleaned_bike_sharing_data.csv')
+    return pd.read_csv('hour.csv')
 
 data = load_data()
 
 if 'hour' not in data.columns:
     if 'datetime_column' in data.columns:
-        data['hour'] = pd.to_datetime(data['datetime_column']).dt.hour  # Adjust 'datetime_column'
+        data['hour'] = pd.to_datetime(data['datetime_column']).dt.hour 
     else:
         st.error("Column 'hour' or a datetime column to derive it from is missing.")
         st.stop()
