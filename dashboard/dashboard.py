@@ -2,14 +2,18 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.title("Bike Sharing Data Analysis Dashboard")
-
 @st.cache
 def load_data():
-    data = pd.read_csv('https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/hour.csv') 
-    return data
+    return pd.read_csv('cleaned_bike_sharing_data.csv')
 
 data = load_data()
+
+if 'hour' not in data.columns:
+    if 'datetime_column' in data.columns:
+        data['hour'] = pd.to_datetime(data['datetime_column']).dt.hour  # Adjust 'datetime_column'
+    else:
+        st.error("Column 'hour' or a datetime column to derive it from is missing.")
+        st.stop()
 
 if st.checkbox('Show raw data'):
     st.write(data)
@@ -17,11 +21,3 @@ if st.checkbox('Show raw data'):
 st.subheader('Bike Usage by Hour')
 hourly_usage = data.groupby('hour')['total_rentals'].sum()
 st.bar_chart(hourly_usage)
-
-user_type = st.selectbox('Select User Type', ['Casual', 'Registered'])
-filtered_data = data[data['user_type'] == user_type]
-
-st.subheader(f'Bike Usage for {user_type} Users')
-st.line_chart(filtered_data.groupby('hour')['total_rentals'].sum())
-
-st.write("Dashboard created using Streamlit")
