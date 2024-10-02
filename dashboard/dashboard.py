@@ -1,37 +1,43 @@
-# dashboard.py
-
 import pandas as pd
 import streamlit as st
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Load datasets
 day_df = pd.read_csv("https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/day.csv")
 hour_df = pd.read_csv("https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/hour.csv")
 
-# Convert 'dteday' column to datetime format
 day_df['dteday'] = pd.to_datetime(day_df['dteday'])
 hour_df['dteday'] = pd.to_datetime(hour_df['dteday'])
 
-# Dashboard title
+year_map = {0: 2011, 1: 2012}
+day_df['year'] = day_df['yr'].map(year_map)  
+
+season_map = {1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'}
+day_df['season_name'] = day_df['season'].map(season_map) 
+
 st.title("Bike Sharing Analysis Dashboard")
 
-# Sidebar filters
 st.sidebar.header("Filter Data")
-year_filter = st.sidebar.multiselect("Select Year", options=day_df['yr'].unique(), default=day_df['yr'].unique())
-season_filter = st.sidebar.multiselect("Select Season", options=day_df['season'].unique(), default=day_df['season'].unique())
 
-# Apply filters
-filtered_data = day_df[(day_df['yr'].isin(year_filter)) & (day_df['season'].isin(season_filter))]
+year_filter = st.sidebar.multiselect(
+    "Select Year",
+    options=day_df['year'].unique(),  
+    default=day_df['year'].unique()    
+)
 
-# Display dataset preview
+season_filter = st.sidebar.multiselect(
+    "Select Season",
+    options=day_df['season_name'].unique(), 
+    default=day_df['season_name'].unique()   
+)
+
+filtered_data = day_df[(day_df['year'].isin(year_filter)) & (day_df['season_name'].isin(season_filter))]
+
 st.subheader("Filtered Data Preview")
 st.dataframe(filtered_data.head())
 
-# Line chart for monthly usage
 st.subheader("Monthly Bike Usage Over Time")
-monthly_usage = filtered_data.groupby(['yr', 'mnth'])['cnt'].sum().reset_index()
-monthly_usage['year'] = monthly_usage['yr'].apply(lambda x: 2011 if x == 0 else 2012)
+monthly_usage = filtered_data.groupby(['year', 'mnth'])['cnt'].sum().reset_index()
 monthly_usage.rename(columns={'mnth': 'month'}, inplace=True)
 monthly_usage['date'] = pd.to_datetime(monthly_usage[['year', 'month']].assign(day=1))
 
@@ -44,20 +50,17 @@ plt.xticks(rotation=45)
 plt.grid(True)
 st.pyplot(plt.gcf())
 
-# Bar plot for seasonal bike usage
 st.subheader("Bike Usage by Season")
-season_df = filtered_data.groupby("season")[["casual", "registered"]].sum().reset_index()
-season_df["season"] = season_df["season"].replace({1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'})
-season_df = pd.melt(season_df, id_vars="season", var_name="user_type", value_name="ride_count")
+season_df = filtered_data.groupby("season_name")[["casual", "registered"]].sum().reset_index()
+season_df = pd.melt(season_df, id_vars="season_name", var_name="user_type", value_name="ride_count")
 
 plt.figure(figsize=(10, 6))
-sns.barplot(x="season", y="ride_count", hue="user_type", data=season_df, palette=["#FFF455", "#059212"])
+sns.barplot(x="season_name", y="ride_count", hue="user_type", data=season_df, palette=["#FFF455", "#059212"])
 plt.title("Bike Usage by Season")
 plt.xlabel("Season")
 plt.ylabel("Number of Rides")
 st.pyplot(plt.gcf())
 
-# Line plot for hourly bike usage
 st.subheader("Hourly Bike Usage")
 hourly_usage_df = hour_df.groupby("hr")[["casual", "registered"]].sum().reset_index()
 hourly_usage_df['hr'] = hourly_usage_df['hr'].apply(lambda x: f"{x}:00")
@@ -72,8 +75,8 @@ plt.legend()
 plt.grid(True)
 st.pyplot(plt.gcf())
 
-# Temperature group usage
 st.subheader("Bike Usage Grouped by Temperature")
+
 def temp_group(temp_value):
     if temp_value < 0.3:
         return 'Low'
