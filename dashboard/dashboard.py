@@ -1,79 +1,111 @@
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+# dashboard.py
 
-# Load Dataset
+import pandas as pd
+import streamlit as st
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Load datasets
 day_df = pd.read_csv("https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/day.csv")
 hour_df = pd.read_csv("https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/hour.csv")
 
-# Convert dteday to datetime format
+# Convert 'dteday' column to datetime format
 day_df['dteday'] = pd.to_datetime(day_df['dteday'])
 hour_df['dteday'] = pd.to_datetime(hour_df['dteday'])
 
-# Title and Description
-st.title("Bike Sharing Data Analysis Dashboard")
-st.write("""
-### Exploratory Data Analysis (EDA) on Bike Sharing Dataset
+# Dashboard title
+st.title("Bike Sharing Analysis Dashboard")
 
-This dashboard allows you to explore the bike sharing data, with options to filter by time and weather conditions, 
-and visualize the peak times for bike usage, as well as the usage patterns by casual and registered users.
-""")
-
-# Sidebar Filters
+# Sidebar filters
 st.sidebar.header("Filter Data")
-selected_day = st.sidebar.multiselect("Select Day of the Week", options=day_df["weekday"].unique(), default=day_df["weekday"].unique())
-selected_weather = st.sidebar.multiselect("Select Weather Condition", options=hour_df["weathersit"].unique(), default=hour_df["weathersit"].unique())
+year_filter = st.sidebar.multiselect("Select Year", options=day_df['yr'].unique(), default=day_df['yr'].unique())
+season_filter = st.sidebar.multiselect("Select Season", options=day_df['season'].unique(), default=day_df['season'].unique())
 
-# Apply Filters
-filtered_df = hour_df[(hour_df["weekday"].isin(selected_day)) & (hour_df["weathersit"].isin(selected_weather))]
+# Apply filters
+filtered_data = day_df[(day_df['yr'].isin(year_filter)) & (day_df['season'].isin(season_filter))]
 
-# Show Data
-if st.sidebar.checkbox("Show Raw Data", False):
-    st.subheader("Raw Data")
-    st.write(filtered_df.head())
+# Display dataset preview
+st.subheader("Filtered Data Preview")
+st.dataframe(filtered_data.head())
 
-# Plotting Bike Usage by Hour
-st.subheader("Hourly Bike Usage Distribution")
-hourly_usage_df = filtered_df.groupby("hr").agg({"cnt": "sum"}).reset_index()
+# Line chart for monthly usage
+st.subheader("Monthly Bike Usage Over Time")
+monthly_usage = filtered_data.groupby(['yr', 'mnth'])['cnt'].sum().reset_index()
+monthly_usage['year'] = monthly_usage['yr'].apply(lambda x: 2011 if x == 0 else 2012)
+monthly_usage.rename(columns={'mnth': 'month'}, inplace=True)
+monthly_usage['date'] = pd.to_datetime(monthly_usage[['year', 'month']].assign(day=1))
+
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=monthly_usage, x='date', y='cnt', marker="o")
+plt.title('Monthly Bike Usage Over Time')
+plt.xlabel('Date')
+plt.ylabel('Total Bike Usage')
+plt.xticks(rotation=45)
+plt.grid(True)
+st.pyplot(plt.gcf())
+
+# Bar plot for seasonal bike usage
+st.subheader("Bike Usage by Season")
+season_df = filtered_data.groupby("season")[["casual", "registered"]].sum().reset_index()
+season_df["season"] = season_df["season"].replace({1: 'Spring', 2: 'Summer', 3: 'Fall', 4: 'Winter'})
+season_df = pd.melt(season_df, id_vars="season", var_name="user_type", value_name="ride_count")
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x="season", y="ride_count", hue="user_type", data=season_df, palette=["#FFF455", "#059212"])
+plt.title("Bike Usage by Season")
+plt.xlabel("Season")
+plt.ylabel("Number of Rides")
+st.pyplot(plt.gcf())
+
+# Line plot for hourly bike usage
+st.subheader("Hourly Bike Usage")
+hourly_usage_df = hour_df.groupby("hr")[["casual", "registered"]].sum().reset_index()
 hourly_usage_df['hr'] = hourly_usage_df['hr'].apply(lambda x: f"{x}:00")
 
-fig, ax = plt.subplots(figsize=(12, 5))
-sns.lineplot(x="hr", y="cnt", data=hourly_usage_df, marker='o', color="#C80036", ax=ax)
-plt.title("Total Bike Usage by Hour", fontsize=18)
-plt.xlabel("Hour", fontsize=14)
-plt.ylabel("Total Usage", fontsize=15)
-plt.xticks(rotation=45)
-st.pyplot(fig)
-
-# Plotting Casual vs Registered Users by Hour
-st.subheader("Casual vs Registered Users by Hour")
-hourly_user_df = filtered_df.groupby("hr")[["casual", "registered"]].sum().reset_index()
-fig, ax = plt.subplots(figsize=(12, 5))
-plt.plot(hourly_user_df["hr"], hourly_user_df["casual"], marker='o', linewidth=2, color="#FFF455", label='Casual Users')
-plt.plot(hourly_user_df["hr"], hourly_user_df["registered"], marker='o', linewidth=2, color="#059212", label='Registered Users')
-plt.title("Bike Usage by Hour of the Day (Casual vs Registered)", fontsize=18)
-plt.xlabel("Hour of the Day", fontsize=14)
-plt.ylabel("Number of Rides", fontsize=14)
+plt.figure(figsize=(12, 6))
+plt.plot(hourly_usage_df["hr"], hourly_usage_df["casual"], marker='o', linewidth=2, color="#FFF455", label='Casual Users')
+plt.plot(hourly_usage_df["hr"], hourly_usage_df["registered"], marker='o', linewidth=2, color="#059212", label='Registered Users')
+plt.title("Bike Usage by Hour of the Day (Casual vs Registered)")
+plt.xlabel("Hour of the Day")
+plt.ylabel("Number of Rides")
 plt.legend()
-st.pyplot(fig)
+plt.grid(True)
+st.pyplot(plt.gcf())
 
-# Analysis of Bike Usage by Weather Condition
-st.subheader("Bike Usage by Weather Condition")
-weather_labels = {1: 'Clear/Partly Cloudy', 2: 'Mist/Cloudy', 3: 'Light Snow/Rain', 4: 'Heavy Rain'}
-filtered_df['weathersit'] = filtered_df['weathersit'].map(weather_labels)
+# Temperature group usage
+st.subheader("Bike Usage Grouped by Temperature")
+def temp_group(temp_value):
+    if temp_value < 0.3:
+        return 'Low'
+    elif 0.3 <= temp_value < 0.6:
+        return 'Medium'
+    else:
+        return 'High'
 
-fig, ax = plt.subplots(figsize=(10, 6))
-sns.barplot(x="weathersit", y="cnt", data=filtered_df, estimator=sum, ci=None, palette="Set1", ax=ax)
-plt.title("Total Bike Usage by Weather Condition", fontsize=18)
-plt.xlabel("Weather Condition", fontsize=14)
-plt.ylabel("Total Usage", fontsize=15)
-st.pyplot(fig)
+hour_df['temp_group'] = hour_df['temp'].apply(temp_group)
+grouped_temp_usage = hour_df.groupby('temp_group').agg({
+    'cnt': 'mean',
+    'casual': 'mean',
+    'registered': 'mean',
+}).reset_index()
 
-# Displaying insights
-st.subheader("Key Insights")
-st.write("""
-- **Peak Usage Time**: The peak bike usage time is during morning rush hours (8-9 AM) and evening rush hours (5-6 PM).
-- **Weekday vs Weekend**: Registered users tend to use bikes more during weekdays, while casual users are more active on weekends.
-- **Weather Impact**: Bike usage significantly decreases during harsh weather conditions like heavy rain or snow.
-""")
+fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(24, 6))
+colors = ["#102C57", "#1679AB", "#83B4FF"]
+
+sns.barplot(x='temp_group', y='cnt', data=grouped_temp_usage, palette=colors, ax=ax[0])
+ax[0].set_title('Average Bike Usage by Temperature Group')
+ax[0].set_ylabel('Average Usage Count')
+ax[0].set_xlabel('Temperature Group')
+
+sns.barplot(x='temp_group', y='casual', data=grouped_temp_usage, palette=colors, ax=ax[1])
+ax[1].set_title('Average Casual User Usage by Temperature Group')
+ax[1].set_ylabel('Average Casual Users')
+ax[1].set_xlabel('Temperature Group')
+
+sns.barplot(x='temp_group', y='registered', data=grouped_temp_usage, palette=colors, ax=ax[2])
+ax[2].set_title('Average Registered User Usage by Temperature Group')
+ax[2].set_ylabel('Average Registered Users')
+ax[2].set_xlabel('Temperature Group')
+
+plt.suptitle('Bike Usage Grouped by Temperature')
+st.pyplot(plt.gcf())
