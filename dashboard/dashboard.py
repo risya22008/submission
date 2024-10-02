@@ -6,7 +6,7 @@ st.title("Bike Sharing Data Analysis Dashboard")
 
 @st.cache
 def load_data():
-    data = pd.read_csv('hour.csv') 
+    data = pd.read_csv('https://raw.githubusercontent.com/risya22008/submission/refs/heads/main/data/hour.csv') 
     return data
 
 data = load_data()
